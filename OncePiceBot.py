@@ -5,16 +5,21 @@ import json
 from datetime import datetime
 import asyncio
 
-bot = commands.Bot(command_prefix='!')
+# Creare gli intents
+intents = discord.Intents.default()
+intents.message_content = True  # Questo è necessario per leggere il contenuto dei messaggi
+
+# Creare il bot
+bot = commands.Bot(command_prefix='!', intents=intents)
 
 # Carica i compleanni dal file JSON
 with open('Compleanni.json', 'r') as f:
-    birthdays = json.load(f)
+    birthday_data = json.load(f)
 
 # Funzione per ottenere i compleanni del giorno
 def get_todays_birthdays():
     today = datetime.now().strftime('%m-%d')
-    return birthdays.get(today, [])
+    return birthday_data.get(today, [])
 
 # Evento che viene eseguito quando il bot è pronto
 @bot.event
@@ -25,7 +30,7 @@ async def on_ready():
 # Comando per ottenere i compleanni di una data specifica
 @bot.command()
 async def birthdays(ctx, date: str):
-    bdays = birthdays.get(date, [])
+    bdays = birthday_data.get(date, [])
     if bdays:
         await ctx.send(f'I compleanni del {date} sono: {", ".join(bdays)}')
     else:
@@ -34,7 +39,7 @@ async def birthdays(ctx, date: str):
 # Attività programmata per inviare i compleanni ogni giorno alle 6:30
 @tasks.loop(hours=24)
 async def send_daily_birthdays():
-    channel = bot.get_channel(YOUR_CHANNEL_ID)
+    channel = bot.get_channel(1344018790270369822)  # Usa l'ID numerico del canale
     bdays = get_todays_birthdays()
     if bdays:
         await channel.send(f'Buongiorno! Oggi è il compleanno di: {", ".join(bdays)}')
@@ -52,4 +57,5 @@ async def before():
     delay = (future - now).total_seconds()
     await asyncio.sleep(delay)
 
-bot.run('YOUR_BOT_TOKEN')  # Sostituisci 'YOUR_BOT_TOKEN' con il token del tuo bot
+# Esegui il bot
+bot.run('MTM0MzkzNTM0MDM4MDk1MDYwOA.GdWz2k.cBiZZpT4qxmKUHRMfCkUUN4NT7f3jNBux0ujCg')  # Sostituisci con il token reale del tuo bot
