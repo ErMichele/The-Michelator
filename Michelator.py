@@ -13,12 +13,12 @@ intents.message_content = True  # Questo è necessario per leggere il contenuto 
 bot = commands.Bot(command_prefix='!', intents=intents)
 
 # Carica i compleanni dal file JSON
-with open('Compleanni.json', 'r') as f:
+with open('Compleanni_OncePice.json', 'r') as f:
     birthday_data = json.load(f)
 
 # Funzione per ottenere i compleanni del giorno
 def get_todays_birthdays():
-    today = datetime.now().strftime('%m-%d')
+    today = datetime.now().strftime('%d-%m')
     return birthday_data.get(today, [])
 
 # Evento che viene eseguito quando il bot è pronto
@@ -58,4 +58,4 @@ async def before():
     await asyncio.sleep(delay)
 
 # Esegui il bot
-bot.run('MTM0MzkzNTM0MDM4MDk1MDYwOA.GdWz2k.cBiZZpT4qxmKUHRMfCkUUN4NT7f3jNBux0ujCg')  # Sostituisci con il token reale del tuo bot
+bot.run('MTM0MzkzNTM0MDM4MDk1MDYwOA.GdWz2k.cBiZZpT4qxmKUHRMfCkUUN4NT7f3jNBux0ujCg')
