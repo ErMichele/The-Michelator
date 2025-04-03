@@ -17,7 +17,7 @@ def load_config():
     if os.path.exists('config.json'):
         with open('config.json', 'r') as f:
             return json.load(f)
-    return {"OncePice": {"birthday_channel": None, "Time": [6, 30]}}
+    return {"OncePice": {"birthday_channel": None, "Time": [6, 30], "Active": True}}
 
 def save_config(config):
     with open('config.json', 'w') as f:
@@ -38,7 +38,19 @@ def get_todays_birthdays():
 @bot.event
 async def on_ready():
     print(f'We have logged in as {bot.user}')
-    send_daily_birthdays.start()
+    if config["OncePice"].get("Active", True):  # Controlla se la funzione è attiva
+        send_daily_birthdays.start()
+    else:
+        print("La funzione di invio dei compleanni è disattivata.")
+
+# Comando per ottenere i compleanni di una data specifica
+@bot.command()
+async def birthdays(ctx, date: str):
+    bdays = birthday_data.get(date, [])
+    if bdays:
+        await ctx.send(f'I compleanni del {date} sono: {", ".join(bdays)}')
+    else:
+        await ctx.send(f'Non ci sono compleanni il {date}')
 
 # Comando per configurare il canale in cui inviare i messaggi di compleanno
 @bot.command()
@@ -55,6 +67,15 @@ async def set_time(ctx, hour: int, minute: int):
     config["OncePice"]["Time"] = [hour, minute]
     save_config(config)
     await ctx.send(f'Ora configurata correttamente: {hour:02d}:{minute:02d}')
+
+# Comando per attivare o disattivare la funzione
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def toggle_active(ctx, state: bool):
+    config["OncePice"]["Active"] = state
+    save_config(config)
+    status = "attivata" if state else "disattivata"
+    await ctx.send(f'La funzione è stata {status}.')
 
 # Attività programmata per inviare i compleanni
 @tasks.loop(hours=24)
@@ -88,4 +109,4 @@ async def before():
     await asyncio.sleep(delay)
 
 # Esegui il bot
-bot.run('INSERISCI_IL_TUO_TOKEN')
+bot.run('MTM0MzkzNTM0MDM4MDk1MDYwOA.GdWz2k.cBiZZpT4qxmKUHRMfCkUUN4NT7f3jNBux0ujCg')
