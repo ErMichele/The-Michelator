@@ -2,14 +2,30 @@
     "123456789012345678": {
         "OncePice": {
             "birthday_channel": 987654321098765432,
-            "Time": [6, 30],
+            "Time": [
+                6,
+                30
+            ],
             "Active": true
         }
     },
     "234567890123456789": {
         "OncePice": {
             "birthday_channel": 876543210987654321,
-            "Time": [7, 45],
+            "Time": [
+                7,
+                45
+            ],
+            "Active": false
+        }
+    },
+    "1289957000733790280": {
+        "OncePice": {
+            "birthday_channel": 1347255771301154917,
+            "Time": [
+                6,
+                55
+            ],
             "Active": false
         }
     }
