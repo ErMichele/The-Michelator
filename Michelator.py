@@ -111,5 +111,14 @@ async def before():
         delay = (future - now).total_seconds()
         await asyncio.sleep(delay)
 
+# Comando per ottenere i compleanni di una data specifica
+@bot.command()
+async def birthdays(ctx, date: str):
+    bdays = birthday_data.get(date, [])
+    if bdays:
+        await ctx.send(f'I compleanni del {date} sono: {", ".join(bdays)}')
+    else:
+        await ctx.send(f'Non ci sono compleanni il {date}')
+
 # Esegui il bot
 bot.run('MTM0MzkzNTM0MDM4MDk1MDYwOA.GdWz2k.cBiZZpT4qxmKUHRMfCkUUN4NT7f3jNBux0ujCg')
