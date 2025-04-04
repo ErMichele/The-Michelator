@@ -3,12 +3,12 @@ from discord.ext import commands, tasks
 import json
 from datetime import datetime, timedelta
 import os
+from dotenv import load_dotenv
 import asyncio
 
-discord.Intents.default().message_content = True
-
-# Creare il bot
-bot = commands.Bot(command_prefix='!', intents=discord.Intents.default())
+intents = discord.Intents.default()
+intents.message_content = True
+bot = commands.Bot(command_prefix='!', intents=intents)
 
 # Funzioni per caricare e salvare le configurazioni
 def load_config():
@@ -75,41 +75,45 @@ async def toggle_active(ctx, state: bool):
     status = "attivata" if state else "disattivata"
     await ctx.send(f'La funzione è stata {status}.')
 
-# Attività programmata per inviare i compleanni
-@tasks.loop(hours=24)
+@tasks.loop(minutes=1)  # Controllo più frequente per gestire cambi di orario
 async def send_daily_birthdays():
+    now = datetime.now()
     for guild_id, guild_data in config.items():
-        once_pice = guild_data["OncePice"]
-        if once_pice.get("Active", True):
+        try:
+            once_pice = guild_data["OncePice"]
+            if not once_pice.get("Active", True):  # Verifica se la funzione è attiva
+                continue
+
             channel_id = once_pice.get("birthday_channel")
-            if channel_id is None:
-                print(f"Nessun canale configurato per il server {guild_id}.")
+            if not channel_id:
+                print(f"[Errore] Nessun canale configurato per il server {guild_id}.")
                 continue
 
             channel = bot.get_channel(channel_id)
-            if channel is None:
-                print(f"Il canale configurato per il server {guild_id} non è valido.")
+            if not channel:
+                print(f"[Errore] Il canale configurato per il server {guild_id} non è valido.")
                 continue
 
-            bdays = get_todays_birthdays()
-            if bdays:
-                await channel.send(f'Buongiorno! Oggi è il compleanno di: {", ".join(bdays)}')
-            else:
-                await channel.send('Oggi non ci sono compleanni.')
+            # Ottieni l'orario configurato per il server
+            hour, minute = once_pice.get("Time", [6, 30])
+            scheduled_time = datetime(now.year, now.month, now.day, hour, minute)
 
-# Avvia il loop alle impostazioni dell'orario
+            # Controlla se l'orario configurato corrisponde all'attuale momento
+            if now >= scheduled_time and (now - scheduled_time).seconds < 60:  # Tolleranza di 1 minuto
+                bdays = get_todays_birthdays()
+                if bdays:
+                    await channel.send(f'Buongiorno! Oggi è il compleanno di: {", ".join(bdays)}')
+                else:
+                    await channel.send('Oggi non ci sono compleanni.')
+                print(f"[Log] Messaggio inviato per il server {guild_id}.")
+        except Exception as e:
+            print(f"[Errore] Problema nel server {guild_id}: {e}")
+
+# Evento per avviare il ciclo
 @send_daily_birthdays.before_loop
-async def before():
+async def before_loop():
     await bot.wait_until_ready()
-    now = datetime.now()
-    for guild_id, guild_data in config.items():
-        once_pice = guild_data["OncePice"]
-        hour, minute = once_pice.get("Time", [6, 30])
-        future = datetime(now.year, now.month, now.day, hour, minute)
-        if now >= future:
-            future += timedelta(days=1)
-        delay = (future - now).total_seconds()
-        await asyncio.sleep(delay)
+    print("[Log] Il ciclo è pronto per essere avviato.")
 
 # Comando per ottenere i compleanni di una data specifica
 @bot.command()
@@ -121,4 +125,14 @@ async def birthdays(ctx, date: str):
         await ctx.send(f'Non ci sono compleanni il {date}')
 
 # Esegui il bot
-bot.run('MTM0MzkzNTM0MDM4MDk1MDYwOA.GdWz2k.cBiZZpT4qxmKUHRMfCkUUN4NT7f3jNBux0ujCg')
+load_dotenv(dotenv_path=".venv/.env")
+token = os.getenv("DISCORD_BOT_TOKEN")
+
+if not token:
+    print("Errore: il token non è stato trovato.")
+else:
+    print("Token trovato, avvio del bot...")
+    try:
+        bot.run(token)
+    except discord.errors.LoginFailure:
+        print("Errore: token non valido. Verifica di usare il token corretto.")
