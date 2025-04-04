@@ -12,18 +12,34 @@ intents.message_content = True  # Necessario per leggere il contenuto dei messag
 # Creare il bot
 bot = commands.Bot(command_prefix='!', intents=intents)
 
-# Funzioni per caricare e salvare la configurazione
+# Funzioni per caricare e salvare le configurazioni
 def load_config():
     if os.path.exists('config.json'):
         with open('config.json', 'r') as f:
             return json.load(f)
-    return {"OncePice": {"birthday_channel": None, "Time": [6, 30], "Active": True}}
+    return {}
 
 def save_config(config):
     with open('config.json', 'w') as f:
         json.dump(config, f, indent=4)
 
 config = load_config()
+
+# Funzione per ottenere la configurazione di un server specifico
+def get_server_config(guild_id):
+    guild_id = str(guild_id)  # Converti l'ID in stringa per usarlo come chiave
+    if guild_id not in config:
+        config[guild_id] = {"OncePice": {"birthday_channel": None, "Time": [6, 30], "Active": True}}
+        save_config(config)
+    return config[guild_id]["OncePice"]
+
+# Funzione per aggiornare la configurazione di un server specifico
+def update_server_config(guild_id, key, value):
+    guild_id = str(guild_id)  # Converti l'ID in stringa per usarlo come chiave
+    if guild_id not in config:
+        config[guild_id] = {"OncePice": {"birthday_channel": None, "Time": [6, 30], "Active": False}}
+    config[guild_id]["OncePice"][key] = value
+    save_config(config)
 
 # Carica i compleanni dal file JSON
 with open('Compleanni_OncePice.json', 'r') as f:
@@ -38,75 +54,64 @@ def get_todays_birthdays():
 @bot.event
 async def on_ready():
     print(f'We have logged in as {bot.user}')
-    if config["OncePice"].get("Active", True):  # Controlla se la funzione è attiva
-        send_daily_birthdays.start()
-    else:
-        print("La funzione di invio dei compleanni è disattivata.")
-
-# Comando per ottenere i compleanni di una data specifica
-@bot.command()
-async def birthdays(ctx, date: str):
-    bdays = birthday_data.get(date, [])
-    if bdays:
-        await ctx.send(f'I compleanni del {date} sono: {", ".join(bdays)}')
-    else:
-        await ctx.send(f'Non ci sono compleanni il {date}')
 
 # Comando per configurare il canale in cui inviare i messaggi di compleanno
 @bot.command()
 @commands.has_permissions(administrator=True)  # Solo amministratori possono configurare
 async def set_channel(ctx, channel: discord.TextChannel):
-    config["OncePice"]["birthday_channel"] = channel.id
-    save_config(config)
+    update_server_config(ctx.guild.id, "birthday_channel", channel.id)
     await ctx.send(f'Canale configurato correttamente: {channel.mention}')
 
 # Comando per configurare l'orario dei messaggi
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def set_time(ctx, hour: int, minute: int):
-    config["OncePice"]["Time"] = [hour, minute]
-    save_config(config)
+    update_server_config(ctx.guild.id, "Time", [hour, minute])
     await ctx.send(f'Ora configurata correttamente: {hour:02d}:{minute:02d}')
 
 # Comando per attivare o disattivare la funzione
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def toggle_active(ctx, state: bool):
-    config["OncePice"]["Active"] = state
-    save_config(config)
+    update_server_config(ctx.guild.id, "Active", state)
     status = "attivata" if state else "disattivata"
     await ctx.send(f'La funzione è stata {status}.')
 
 # Attività programmata per inviare i compleanni
 @tasks.loop(hours=24)
 async def send_daily_birthdays():
-    channel_id = config["OncePice"].get("birthday_channel")
-    if channel_id is None:
-        print("Il canale non è stato configurato.")
-        return
+    for guild_id, guild_data in config.items():
+        once_pice = guild_data["OncePice"]
+        if once_pice.get("Active", True):
+            channel_id = once_pice.get("birthday_channel")
+            if channel_id is None:
+                print(f"Nessun canale configurato per il server {guild_id}.")
+                continue
 
-    channel = bot.get_channel(channel_id)
-    if channel is None:
-        print("Il canale configurato non è valido.")
-        return
+            channel = bot.get_channel(channel_id)
+            if channel is None:
+                print(f"Il canale configurato per il server {guild_id} non è valido.")
+                continue
 
-    bdays = get_todays_birthdays()
-    if bdays:
-        await channel.send(f'Buongiorno! Oggi è il compleanno di: {", ".join(bdays)}')
-    else:
-        await channel.send('Oggi non ci sono compleanni.')
+            bdays = get_todays_birthdays()
+            if bdays:
+                await channel.send(f'Buongiorno! Oggi è il compleanno di: {", ".join(bdays)}')
+            else:
+                await channel.send('Oggi non ci sono compleanni.')
 
 # Avvia il loop alle impostazioni dell'orario
 @send_daily_birthdays.before_loop
 async def before():
     await bot.wait_until_ready()
     now = datetime.now()
-    hour, minute = config["OncePice"].get("Time", [6, 30])
-    future = datetime(now.year, now.month, now.day, hour, minute)
-    if now >= future:
-        future += timedelta(days=1)
-    delay = (future - now).total_seconds()
-    await asyncio.sleep(delay)
+    for guild_id, guild_data in config.items():
+        once_pice = guild_data["OncePice"]
+        hour, minute = once_pice.get("Time", [6, 30])
+        future = datetime(now.year, now.month, now.day, hour, minute)
+        if now >= future:
+            future += timedelta(days=1)
+        delay = (future - now).total_seconds()
+        await asyncio.sleep(delay)
 
 # Esegui il bot
 bot.run('MTM0MzkzNTM0MDM4MDk1MDYwOA.GdWz2k.cBiZZpT4qxmKUHRMfCkUUN4NT7f3jNBux0ujCg')
