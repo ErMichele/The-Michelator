@@ -10,64 +10,72 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
-# Funzioni per caricare e salvare le configurazioni
-def load_config():
-    if os.path.exists('config.json'):
-        with open('config.json', 'r') as f:
-            return json.load(f)
-    return {}
+# Directory for server configuration files
+CONFIG_DIR = "server_configs"
 
-def save_config(config):
-    with open('config.json', 'w') as f:
-        json.dump(config, f, indent=4)
+# Ensure the directory exists
+if not os.path.exists(CONFIG_DIR):
+    os.makedirs(CONFIG_DIR)
 
-config = load_config()
+# Function to load configuration for a specific server (guild)
+def load_config(guild_id):
+    config_path = os.path.join(CONFIG_DIR, f"{guild_id}.json")
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, 'r') as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            print(f"[Errore] Il file di configurazione per il server {guild_id} è corrotto.")
+    # Default configuration if the file doesn't exist
+    return {"OncePice": {"birthday_channel": None, "Time": [6, 30], "Active": True}}
 
-# Funzione per ottenere la configurazione di un server specifico
+# Function to save configuration for a specific server (guild)
+def save_config(guild_id, config):
+    config_path = os.path.join(CONFIG_DIR, f"{guild_id}.json")
+    try:
+        with open(config_path, 'w') as f:
+            json.dump(config, f, indent=4)
+    except Exception as e:
+        print(f"[Errore] Impossibile salvare la configurazione per il server {guild_id}: {e}")
+
+# Function to get the configuration for a specific server
 def get_server_config(guild_id):
-    guild_id = str(guild_id)  # Converti l'ID in stringa per usarlo come chiave
-    if guild_id not in config:
-        config[guild_id] = {"OncePice": {"birthday_channel": None, "Time": [6, 30], "Active": True}}
-        save_config(config)
-    return config[guild_id]["OncePice"]
+    config = load_config(guild_id)
+    return config["OncePice"]
 
-# Funzione per aggiornare la configurazione di un server specifico
+# Function to update a specific setting for a server
 def update_server_config(guild_id, key, value):
-    guild_id = str(guild_id)  # Converti l'ID in stringa per usarlo come chiave
-    if guild_id not in config:
-        config[guild_id] = {"OncePice": {"birthday_channel": None, "Time": [6, 30], "Active": False}}
-    config[guild_id]["OncePice"][key] = value
-    save_config(config)
+    config = load_config(guild_id)
+    if "OncePice" not in config:
+        config["OncePice"] = {"birthday_channel": None, "Time": [6, 30], "Active": True}
+    config["OncePice"][key] = value
+    save_config(guild_id, config)
 
-# Carica i compleanni dal file JSON
+# Load birthdays data (shared across servers)
 with open('Compleanni_OncePice.json', 'r') as f:
     birthday_data = json.load(f)
 
-# Funzione per ottenere i compleanni del giorno
 def get_todays_birthdays():
     today = datetime.now().strftime('%d-%m')
     return birthday_data.get(today, [])
 
-# Evento che viene eseguito quando il bot è pronto
 @bot.event
 async def on_ready():
-    print(f'We have logged in as {bot.user}')
+    print(f'Siamo online come {bot.user}')
+    send_daily_birthdays.start()
 
-# Comando per configurare il canale in cui inviare i messaggi di compleanno
 @bot.command()
-@commands.has_permissions(administrator=True)  # Solo amministratori possono configurare
+@commands.has_permissions(administrator=True)
 async def set_channel(ctx, channel: discord.TextChannel):
     update_server_config(ctx.guild.id, "birthday_channel", channel.id)
     await ctx.send(f'Canale configurato correttamente: {channel.mention}')
 
-# Comando per configurare l'orario dei messaggi
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def set_time(ctx, hour: int, minute: int):
     update_server_config(ctx.guild.id, "Time", [hour, minute])
     await ctx.send(f'Ora configurata correttamente: {hour:02d}:{minute:02d}')
 
-# Comando per attivare o disattivare la funzione
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def toggle_active(ctx, state: bool):
@@ -75,13 +83,16 @@ async def toggle_active(ctx, state: bool):
     status = "attivata" if state else "disattivata"
     await ctx.send(f'La funzione è stata {status}.')
 
-@tasks.loop(minutes=1)  # Controllo più frequente per gestire cambi di orario
+@tasks.loop(minutes=1)
 async def send_daily_birthdays():
     now = datetime.now()
-    for guild_id, guild_data in config.items():
+    for config_file in os.listdir(CONFIG_DIR):
         try:
-            once_pice = guild_data["OncePice"]
-            if not once_pice.get("Active", True):  # Verifica se la funzione è attiva
+            guild_id = config_file.replace(".json", "")
+            config = load_config(guild_id)
+            once_pice = config["OncePice"]
+
+            if not once_pice.get("Active", True):
                 continue
 
             channel_id = once_pice.get("birthday_channel")
@@ -89,33 +100,27 @@ async def send_daily_birthdays():
                 print(f"[Errore] Nessun canale configurato per il server {guild_id}.")
                 continue
 
-            channel = bot.get_channel(channel_id)
+            channel = bot.get_channel(int(channel_id))
             if not channel:
                 print(f"[Errore] Il canale configurato per il server {guild_id} non è valido.")
                 continue
 
-            # Ottieni l'orario configurato per il server
             hour, minute = once_pice.get("Time", [6, 30])
             scheduled_time = datetime(now.year, now.month, now.day, hour, minute)
-
-            # Controlla se l'orario configurato corrisponde all'attuale momento
-            if now >= scheduled_time and (now - scheduled_time).seconds < 60:  # Tolleranza di 1 minuto
+            if now >= scheduled_time and (now - scheduled_time).seconds < 60:
+                print("[Debbug] Printare i compleanni")
                 bdays = get_todays_birthdays()
                 if bdays:
                     await channel.send(f'Buongiorno! Oggi è il compleanno di: {", ".join(bdays)}')
                 else:
                     await channel.send('Oggi non ci sono compleanni.')
-                print(f"[Log] Messaggio inviato per il server {guild_id}.")
         except Exception as e:
             print(f"[Errore] Problema nel server {guild_id}: {e}")
 
-# Evento per avviare il ciclo
 @send_daily_birthdays.before_loop
 async def before_loop():
     await bot.wait_until_ready()
-    print("[Log] Il ciclo è pronto per essere avviato.")
 
-# Comando per ottenere i compleanni di una data specifica
 @bot.command()
 async def birthdays(ctx, date: str):
     bdays = birthday_data.get(date, [])
@@ -124,7 +129,7 @@ async def birthdays(ctx, date: str):
     else:
         await ctx.send(f'Non ci sono compleanni il {date}')
 
-# Esegui il bot
+# Load token and run the bot
 load_dotenv(dotenv_path=".venv/.env")
 token = os.getenv("DISCORD_BOT_TOKEN")
 
