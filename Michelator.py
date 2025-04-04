@@ -5,12 +5,10 @@ from datetime import datetime, timedelta
 import os
 import asyncio
 
-# Creare gli intents
-intents = discord.Intents.default()
-intents.message_content = True  # Necessario per leggere il contenuto dei messaggi
+discord.Intents.default().message_content = True
 
 # Creare il bot
-bot = commands.Bot(command_prefix='!', intents=intents)
+bot = commands.Bot(command_prefix='!', intents=discord.Intents.default())
 
 # Funzioni per caricare e salvare le configurazioni
 def load_config():
