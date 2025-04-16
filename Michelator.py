@@ -17,6 +17,14 @@ CONFIG_DIR = "server_configs"
 if not os.path.exists(CONFIG_DIR):
     os.makedirs(CONFIG_DIR)
 
+# Load birthdays data (shared across servers)
+with open('Compleanni_OncePice.json', 'r') as f:
+    birthday_data = json.load(f)
+
+def get_todays_birthdays():
+    today = datetime.now().strftime('%d-%m')
+    return birthday_data.get(today, [])
+
 # Function to load configuration for a specific server (guild)
 def load_config(guild_id):
     config_path = os.path.join(CONFIG_DIR, f"{guild_id}.json")
@@ -50,14 +58,6 @@ def update_server_config(guild_id, key, value):
         config["OncePice"] = {"birthday_channel": None, "Time": [6, 30], "Active": True}
     config["OncePice"][key] = value
     save_config(guild_id, config)
-
-# Load birthdays data (shared across servers)
-with open('Compleanni_OncePice.json', 'r') as f:
-    birthday_data = json.load(f)
-
-def get_todays_birthdays():
-    today = datetime.now().strftime('%d-%m')
-    return birthday_data.get(today, [])
 
 @bot.event
 async def on_ready():
